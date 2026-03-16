@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#FF1565C0</color>
+    <color name="primary_dark">#FF0D47A1</color>
+    <color name="primary_light">#FF1E88E5</color>
+    <color name="accent">#FF00BCD4</color>
+    <color name="accent_light">#FF26C6DA</color>
+
+    <color name="surface_light">#FFF5F5F5</color>
+    <color name="surface_dark">#FF121212</color>
+    <color name="text_primary_light">#FF212121</color>
+    <color name="text_secondary_light">#FF757575</color>
+    <color name="text_primary_dark">#FFFFFFFF</color>
+    <color name="gps_active">#FF4CAF50</color>
+    <color name="gps_inactive">#FFF44336</color>
+    <color name="delete_red">#FFE53935</color>
+    <color name="edit_green">#FF43A047</color>
+    <color name="save_green">#FF2E7D32</color>
+
+    <color name="gradient_start">#FF1565C0</color>
+    <color name="gradient_end">#FF0D47A1</color>
+
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+
+</resources>

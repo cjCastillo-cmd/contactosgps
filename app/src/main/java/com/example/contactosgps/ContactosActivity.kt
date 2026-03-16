@@ -1,0 +1,206 @@
+package com.example.contactosgps
+
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.widget.LinearLayout
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.snackbar.Snackbar
+
+class ContactosActivity : AppCompatActivity(), ContactoAdapter.OnContactoClickListener {
+
+    private lateinit var toolbar: MaterialToolbar
+    private lateinit var searchView: SearchView
+    private lateinit var rvContactos: RecyclerView
+    private lateinit var emptyState: LinearLayout
+    private lateinit var fabAgregar: FloatingActionButton
+    private lateinit var adapter: ContactoAdapter
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_contactos)
+
+        initViews()
+        setupToolbar()
+        setupRecyclerView()
+        setupSearch()
+        setupListeners()
+        setupBackNavigation()
+    }
+
+    private fun initViews() {
+        toolbar = findViewById(R.id.toolbar)
+        searchView = findViewById(R.id.searchView)
+        rvContactos = findViewById(R.id.rvContactos)
+        emptyState = findViewById(R.id.emptyState)
+        fabAgregar = findViewById(R.id.fabAgregar)
+    }
+
+    private fun setupToolbar() {
+        setSupportActionBar(toolbar)
+        toolbar.setNavigationOnClickListener {
+            finish()
+            transicionCerrar(R.anim.slide_in_left, R.anim.slide_out_right)
+        }
+    }
+
+    private fun setupBackNavigation() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                finish()
+                transicionCerrar(R.anim.slide_in_left, R.anim.slide_out_right)
+            }
+        })
+    }
+
+    private fun setupRecyclerView() {
+        adapter = ContactoAdapter(emptyList(), this)
+        rvContactos.layoutManager = LinearLayoutManager(this)
+        rvContactos.adapter = adapter
+
+        val swipeHelper = SwipeHelper(
+            onSwipeLeft = { position -> confirmarEliminar(adapter.getItem(position), position) },
+            onSwipeRight = { position -> editarContacto(adapter.getItem(position)) }
+        )
+        ItemTouchHelper(swipeHelper).attachToRecyclerView(rvContactos)
+
+        cargarContactos()
+    }
+
+    private fun setupSearch() {
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                adapter.filter.filter(query)
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                adapter.filter.filter(newText)
+                return true
+            }
+        })
+    }
+
+    private fun setupListeners() {
+        fabAgregar.setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java))
+            transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        cargarContactos()
+    }
+
+    private fun cargarContactos() {
+        ApiService.listar(object : ApiService.ApiCallback<List<Contacto>> {
+            override fun onSuccess(result: List<Contacto>) {
+                adapter.actualizarDatos(result)
+                toolbar.subtitle = "${result.size} contacto${if (result.size != 1) "s" else ""}"
+
+                if (result.isEmpty()) {
+                    rvContactos.visibility = View.GONE
+                    emptyState.visibility = View.VISIBLE
+                } else {
+                    rvContactos.visibility = View.VISIBLE
+                    emptyState.visibility = View.GONE
+                }
+            }
+
+            override fun onError(message: String) {
+                Snackbar.make(
+                    findViewById(R.id.coordinatorLayout),
+                    "Error al cargar: $message",
+                    Snackbar.LENGTH_LONG
+                ).show()
+            }
+        })
+    }
+
+    private fun confirmarEliminar(contacto: Contacto, position: Int) {
+        MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+            .setTitle("Eliminar Contacto")
+            .setMessage("¿Está seguro de eliminar a ${contacto.nombre}?\n\nEsta acción no se puede deshacer.")
+            .setPositiveButton("Eliminar") { _, _ ->
+                ApiService.eliminar(contacto.id, object : ApiService.ApiCallback<Boolean> {
+                    override fun onSuccess(result: Boolean) {
+                        cargarContactos()
+                        Snackbar.make(
+                            findViewById(R.id.coordinatorLayout),
+                            "Contacto eliminado",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    }
+
+                    override fun onError(message: String) {
+                        adapter.notifyItemChanged(position)
+                        Snackbar.make(
+                            findViewById(R.id.coordinatorLayout),
+                            "Error: $message",
+                            Snackbar.LENGTH_LONG
+                        ).show()
+                    }
+                })
+            }
+            .setNegativeButton("Cancelar") { _, _ ->
+                adapter.notifyItemChanged(position)
+            }
+            .setOnCancelListener {
+                adapter.notifyItemChanged(position)
+            }
+            .show()
+    }
+
+    private fun editarContacto(contacto: Contacto) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("contacto_id", contacto.id)
+            putExtra("contacto_nombre", contacto.nombre)
+            putExtra("contacto_telefono", contacto.telefono)
+            putExtra("contacto_latitud", contacto.latitud)
+            putExtra("contacto_longitud", contacto.longitud)
+            putExtra("contacto_foto", contacto.fotoPath)
+        }
+        startActivity(intent)
+        transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
+    }
+
+    override fun onItemClick(contacto: Contacto) {
+        MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+            .setTitle("Ubicación")
+            .setMessage("¿Desea ir a la ubicación de ${contacto.nombre}?")
+            .setPositiveButton("Ver en mapa") { _, _ ->
+                val intent = Intent(this, MapaActivity::class.java).apply {
+                    putExtra("nombre", contacto.nombre)
+                    putExtra("telefono", contacto.telefono)
+                    putExtra("latitud", contacto.latitud)
+                    putExtra("longitud", contacto.longitud)
+                    putExtra("foto_path", contacto.fotoPath)
+                }
+                startActivity(intent)
+                transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    override fun onMapClick(contacto: Contacto) {
+        val intent = Intent(this, MapaActivity::class.java).apply {
+            putExtra("nombre", contacto.nombre)
+            putExtra("telefono", contacto.telefono)
+            putExtra("latitud", contacto.latitud)
+            putExtra("longitud", contacto.longitud)
+            putExtra("foto_path", contacto.fotoPath)
+        }
+        startActivity(intent)
+        transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
+    }
+}

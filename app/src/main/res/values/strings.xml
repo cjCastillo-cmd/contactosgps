@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">ContactosGPS</string>
+    <string name="titulo_nuevo_contacto">Nuevo Contacto</string>
+    <string name="titulo_editar_contacto">Editar Contacto</string>
+    <string name="titulo_mis_contactos">Mis Contactos</string>
+    <string name="hint_nombre">Nombre</string>
+    <string name="hint_telefono">Teléfono</string>
+    <string name="hint_latitud">Latitud</string>
+    <string name="hint_longitud">Longitud</string>
+    <string name="btn_salvar">Salvar Contacto</string>
+    <string name="btn_actualizar">Actualizar Contacto</string>
+    <string name="btn_ver_contactos">Ver Contactos</string>
+    <string name="gps_activo">GPS Activo</string>
+    <string name="gps_inactivo">GPS Inactivo</string>
+    <string name="buscar_contacto">Buscar contacto…</string>
+    <string name="sin_contactos">No hay contactos guardados</string>
+    <string name="sin_contactos_desc">Toca el botón + para agregar tu primer contacto</string>
+    <string name="tomar_foto">Tomar foto</string>
+    <string name="foto_contacto">Foto del contacto</string>
+    <string name="agregar_contacto">Agregar contacto</string>
+    <string name="centrar">Centrar</string>
+    <string name="llamar">Llamar</string>
+    <string name="ver_en_mapa">Ver en mapa</string>
+</resources>
