@@ -20,6 +20,12 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
+/**
+ * Pantalla que muestra la ubicacion de un contacto en un mapa interactivo.
+ * - Usa OSMDroid (OpenStreetMap) para mostrar el mapa
+ * - Muestra un marcador en la ubicacion del contacto
+ * - Permite centrar el mapa y realizar llamadas telefonicas
+ */
 class MapaActivity : AppCompatActivity() {
 
     private lateinit var toolbar: MaterialToolbar
@@ -30,28 +36,31 @@ class MapaActivity : AppCompatActivity() {
     private lateinit var fabCentrar: FloatingActionButton
     private lateinit var fabLlamar: FloatingActionButton
 
+    // Datos del contacto recibidos por Intent
     private var nombre = ""
     private var telefono = ""
     private var latitud = 0.0
     private var longitud = 0.0
     private var fotoPath: String? = null
 
+    // Callback para solicitar permiso de llamada
     private val callPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                realizarLlamada()
-            }
+            if (granted) realizarLlamada()
         }
+
+    // ==================== CICLO DE VIDA ====================
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Configurar OSMDroid antes de setContentView
+        // Inicializar OSMDroid ANTES de setContentView
         Configuration.getInstance().load(this, getSharedPreferences("osmdroid", MODE_PRIVATE))
         Configuration.getInstance().userAgentValue = packageName
 
         setContentView(R.layout.activity_mapa)
 
+        // Recibir datos del contacto
         nombre = intent.getStringExtra("nombre") ?: ""
         telefono = intent.getStringExtra("telefono") ?: ""
         latitud = intent.getDoubleExtra("latitud", 0.0)
@@ -66,6 +75,18 @@ class MapaActivity : AppCompatActivity() {
         setupMap()
     }
 
+    override fun onResume() {
+        super.onResume()
+        mapView.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        mapView.onPause()
+    }
+
+    // ==================== INICIALIZACION ====================
+
     private fun initViews() {
         toolbar = findViewById(R.id.toolbar)
         mapView = findViewById(R.id.mapView)
@@ -77,7 +98,7 @@ class MapaActivity : AppCompatActivity() {
     }
 
     private fun setupToolbar() {
-        toolbar.title = "Ubicación de $nombre"
+        toolbar.title = "Ubicacion de $nombre"
         toolbar.setNavigationOnClickListener {
             finish()
             transicionCerrar(R.anim.slide_in_left, R.anim.slide_out_right)
@@ -93,81 +114,74 @@ class MapaActivity : AppCompatActivity() {
         })
     }
 
+    /** Configura la tarjeta inferior con la info del contacto */
     private fun setupInfoCard() {
         tvNombreMapa.text = nombre
         tvTelefonoMapa.text = telefono
-
         ImageLoader.cargar(fotoPath, ivFotoMapa, R.drawable.ic_person)
     }
 
     private fun setupListeners() {
+        // Boton centrar: regresa el mapa a la ubicacion del contacto
         fabCentrar.setOnClickListener {
-            val punto = GeoPoint(latitud, longitud)
-            mapView.controller.animateTo(punto, 17.0, 1000L)
+            mapView.controller.animateTo(GeoPoint(latitud, longitud), 17.0, 1000L)
         }
 
+        // Boton llamar: realiza llamada al contacto
         fabLlamar.setOnClickListener {
-            if (telefono.isNotEmpty()) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
-                    == PackageManager.PERMISSION_GRANTED
-                ) {
-                    realizarLlamada()
-                } else {
-                    callPermissionLauncher.launch(Manifest.permission.CALL_PHONE)
-                }
+            if (telefono.isEmpty()) {
+                Snackbar.make(findViewById(R.id.coordinatorLayout), "No hay numero de telefono", Snackbar.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+                realizarLlamada()
             } else {
-                Snackbar.make(
-                    findViewById(R.id.coordinatorLayout),
-                    "No hay número de teléfono",
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                callPermissionLauncher.launch(Manifest.permission.CALL_PHONE)
             }
         }
     }
 
-    private fun realizarLlamada() {
-        val callIntent = Intent(Intent.ACTION_CALL, "tel:$telefono".toUri())
-        startActivity(callIntent)
-    }
+    // ==================== MAPA ====================
 
+    /** Configura el mapa con tiles de OpenStreetMap y agrega el marcador */
     private fun setupMap() {
         mapView.setTileSource(TileSourceFactory.MAPNIK)
         mapView.setMultiTouchControls(true)
-        mapView.zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT)
+        mapView.zoomController.setVisibility(
+            org.osmdroid.views.CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT
+        )
 
         val punto = GeoPoint(latitud, longitud)
 
-        // Zoom inicial y luego animación suave
+        // Mostrar zoom lejano primero y luego animar acercandose
         mapView.controller.setZoom(5.0)
         mapView.controller.setCenter(punto)
         mapView.post {
             mapView.controller.animateTo(punto, 17.0, 2000L)
         }
 
-        // Marcador
-        val marker = Marker(mapView)
-        marker.position = punto
-        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        marker.title = nombre
-        marker.snippet = telefono
+        // Crear marcador en la ubicacion del contacto
+        val marker = Marker(mapView).apply {
+            position = punto
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = nombre
+            snippet = telefono
+        }
 
         // Icono personalizado del marcador
-        val iconDrawable = ContextCompat.getDrawable(this, R.drawable.ic_map_marker)
-        if (iconDrawable != null) {
-            marker.icon = iconDrawable
+        ContextCompat.getDrawable(this, R.drawable.ic_map_marker)?.let {
+            marker.icon = it
         }
 
         mapView.overlays.add(marker)
         mapView.invalidate()
     }
 
-    override fun onResume() {
-        super.onResume()
-        mapView.onResume()
-    }
+    // ==================== LLAMADA ====================
 
-    override fun onPause() {
-        super.onPause()
-        mapView.onPause()
+    /** Inicia una llamada telefonica al numero del contacto */
+    private fun realizarLlamada() {
+        startActivity(Intent(Intent.ACTION_CALL, "tel:$telefono".toUri()))
     }
 }

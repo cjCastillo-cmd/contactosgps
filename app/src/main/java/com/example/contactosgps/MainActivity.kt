@@ -34,10 +34,16 @@ import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.Locale
 
+/**
+ * Pantalla principal: formulario para CREAR o EDITAR un contacto.
+ * - Toma foto con la camara del dispositivo
+ * - Obtiene ubicacion GPS en tiempo real
+ * - Envia los datos al servidor via ApiService
+ */
 class MainActivity : AppCompatActivity() {
 
+    // ==================== VISTAS ====================
     private lateinit var toolbar: MaterialToolbar
     private lateinit var ivFoto: CircleImageView
     private lateinit var fabCamera: FloatingActionButton
@@ -51,13 +57,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fabSalvar: ExtendedFloatingActionButton
     private lateinit var btnVerContactos: MaterialButton
 
+    // ==================== GPS ====================
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
 
-    private var fotoPath: String? = null
-    private var ubicacionObtenida = false
-    private var contactoEditId = -1
+    // ==================== ESTADO ====================
+    private var fotoPath: String? = null      // Ruta de la foto tomada
+    private var ubicacionObtenida = false      // Ya se obtuvo el GPS?
+    private var contactoEditId = -1            // -1 = crear nuevo, otro valor = editar
 
+    // Callback que recibe el resultado de la camara
     private val cameraLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK && fotoPath != null) {
@@ -67,19 +76,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    // Callback que recibe el resultado de solicitar permisos
     private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            val allGranted = permissions.values.all { it }
-            if (allGranted) {
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permisos ->
+            if (permisos.values.all { it }) {
                 obtenerUbicacion()
             } else {
-                Snackbar.make(
-                    findViewById(R.id.coordinatorLayout),
-                    "Se necesitan permisos para funcionar correctamente",
-                    Snackbar.LENGTH_LONG
-                ).show()
+                mostrarSnackbar("Se necesitan permisos para funcionar correctamente")
             }
         }
+
+    // ==================== CICLO DE VIDA ====================
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,6 +99,7 @@ class MainActivity : AppCompatActivity() {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
+        // Determinar si estamos creando o editando
         if (intent.hasExtra("contacto_id")) {
             contactoEditId = intent.getIntExtra("contacto_id", -1)
             cargarContactoParaEditar()
@@ -100,6 +108,22 @@ class MainActivity : AppCompatActivity() {
             startPulseAnimation()
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Solo buscar GPS si es contacto nuevo y aun no se obtuvo ubicacion
+        if (!ubicacionObtenida && contactoEditId == -1) {
+            obtenerUbicacion()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Dejar de escuchar GPS al salir de la pantalla
+        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
+    }
+
+    // ==================== INICIALIZACION ====================
 
     private fun initViews() {
         toolbar = findViewById(R.id.toolbar)
@@ -130,31 +154,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        // Click en la foto o boton de camara -> tomar foto
         ivFoto.setOnClickListener { tomarFoto() }
         fabCamera.setOnClickListener { tomarFoto() }
 
+        // Boton guardar
         fabSalvar.setOnClickListener { salvarContacto() }
 
+        // Boton para ir a la lista de contactos
         btnVerContactos.setOnClickListener {
-            val intent = Intent(this, ContactosActivity::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, ContactosActivity::class.java))
             transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
         }
     }
 
-    private fun startPulseAnimation() {
-        val pulse = AnimationUtils.loadAnimation(this, R.anim.pulse)
-        tilLatitud.startAnimation(pulse)
-        tilLongitud.startAnimation(pulse)
-    }
+    // ==================== MODO EDICION ====================
 
-    private fun stopPulseAnimation() {
-        tilLatitud.clearAnimation()
-        tilLongitud.clearAnimation()
-    }
-
+    /** Llena el formulario con los datos del contacto a editar */
     private fun cargarContactoParaEditar() {
-        // Cargar datos pasados por intent
         val nombre = intent.getStringExtra("contacto_nombre") ?: ""
         val telefono = intent.getStringExtra("contacto_telefono") ?: ""
         val latitud = intent.getDoubleExtra("contacto_latitud", 0.0)
@@ -168,16 +185,21 @@ class MainActivity : AppCompatActivity() {
         fotoPath = foto
         ubicacionObtenida = true
 
+        // Cargar foto si existe
         if (!foto.isNullOrEmpty()) {
             ImageLoader.cargar(foto, ivFoto, R.drawable.ic_person)
         }
 
+        // Cambiar titulo y boton a modo edicion
         toolbar.title = getString(R.string.titulo_editar_contacto)
         fabSalvar.text = getString(R.string.btn_actualizar)
         stopPulseAnimation()
         actualizarChipGps(true)
     }
 
+    // ==================== PERMISOS ====================
+
+    /** Solicita permisos de camara y ubicacion si no estan otorgados */
     private fun solicitarPermisos() {
         val permisos = arrayOf(
             Manifest.permission.CAMERA,
@@ -185,24 +207,24 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
 
-        val todosOtorgados = permisos.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        }
-
-        if (!todosOtorgados) {
-            permissionLauncher.launch(permisos)
-        } else {
+        if (permisos.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
             obtenerUbicacion()
+        } else {
+            permissionLauncher.launch(permisos)
         }
     }
 
+    // ==================== GPS ====================
+
+    /** Obtiene la ubicacion GPS del dispositivo */
     private fun obtenerUbicacion() {
+        // Verificar si el GPS esta encendido
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
         if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             actualizarChipGps(false)
             MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
                 .setTitle("GPS Desactivado")
-                .setMessage("El GPS no está activo. ¿Desea activarlo?")
+                .setMessage("El GPS no esta activo. Desea activarlo?")
                 .setPositiveButton("Activar") { _, _ ->
                     startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                 }
@@ -213,18 +235,19 @@ class MainActivity : AppCompatActivity() {
 
         actualizarChipGps(true)
 
+        // Verificar permiso de ubicacion
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) return
 
-        // Intentar obtener la última ubicación conocida primero
+        // Intentar obtener la ultima ubicacion conocida (rapido)
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null && !ubicacionObtenida) {
                 setUbicacion(location.latitude, location.longitude)
             }
         }
 
-        // Solicitar actualizaciones en tiempo real
+        // Solicitar ubicacion en tiempo real con alta precision
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3000)
             .setMinUpdateIntervalMillis(1000)
             .setWaitForAccurateLocation(false)
@@ -234,6 +257,7 @@ class MainActivity : AppCompatActivity() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { location ->
                     setUbicacion(location.latitude, location.longitude)
+                    // Dejar de escuchar despues de obtener una ubicacion
                     fusedLocationClient.removeLocationUpdates(this)
                 }
             }
@@ -244,6 +268,7 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    /** Coloca las coordenadas en los campos del formulario */
     private fun setUbicacion(lat: Double, lng: Double) {
         etLatitud.setText(String.format(Locale.US, "%.8f", lat))
         etLongitud.setText(String.format(Locale.US, "%.8f", lng))
@@ -251,6 +276,7 @@ class MainActivity : AppCompatActivity() {
         stopPulseAnimation()
     }
 
+    /** Actualiza el indicador visual del GPS (verde = activo, rojo = inactivo) */
     private fun actualizarChipGps(activo: Boolean) {
         if (activo) {
             chipGps.text = getString(R.string.gps_activo)
@@ -263,19 +289,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (!ubicacionObtenida && contactoEditId == -1) {
-            obtenerUbicacion()
-        }
-    }
+    // ==================== CAMARA ====================
 
-    override fun onPause() {
-        super.onPause()
-        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-    }
-
+    /** Abre la camara para tomar una foto */
     private fun tomarFoto() {
+        // Verificar permiso de camara
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -283,17 +301,15 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // Crear archivo temporal para guardar la foto
         val archivoFoto: File? = try {
             crearArchivoImagen()
         } catch (_: IOException) {
-            Snackbar.make(
-                findViewById(R.id.coordinatorLayout),
-                "Error al crear archivo de imagen",
-                Snackbar.LENGTH_SHORT
-            ).show()
+            mostrarSnackbar("Error al crear archivo de imagen")
             null
         }
 
+        // Abrir la camara con la URI del archivo
         archivoFoto?.let {
             val fotoUri: Uri = FileProvider.getUriForFile(
                 this, "${applicationContext.packageName}.fileprovider", it
@@ -305,6 +321,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Crea un archivo temporal con nombre unico para la foto */
     @Throws(IOException::class)
     private fun crearArchivoImagen(): File {
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -314,22 +331,22 @@ class MainActivity : AppCompatActivity() {
         return imagen
     }
 
+    // ==================== GUARDAR CONTACTO ====================
+
+    /** Valida los datos del formulario y envia al servidor */
     private fun salvarContacto() {
         val nombre = etNombre.text.toString().trim()
         val telefono = etTelefono.text.toString().trim()
         val latStr = etLatitud.text.toString().trim()
         val lngStr = etLongitud.text.toString().trim()
-        val coordinatorLayout = findViewById<androidx.coordinatorlayout.widget.CoordinatorLayout>(R.id.coordinatorLayout)
-
-        // Solo exigir foto local en creacion nueva (en edicion puede ser URL remota)
         val esEdicion = contactoEditId != -1
+
+        // --- Validaciones ---
+
+        // Foto obligatoria solo al crear (al editar puede ser URL remota)
         val tieneFoto = fotoPath != null && (fotoPath!!.startsWith("http") || File(fotoPath!!).exists())
         if (!tieneFoto && !esEdicion) {
-            MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
-                .setTitle("Foto requerida")
-                .setMessage("Debe tomar una foto del contacto antes de guardar.")
-                .setPositiveButton("Entendido", null)
-                .show()
+            mostrarDialogo("Foto requerida", "Debe tomar una foto del contacto antes de guardar.")
             return
         }
 
@@ -340,48 +357,42 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (telefono.isEmpty()) {
-            etTelefono.error = "El teléfono es obligatorio"
+            etTelefono.error = "El telefono es obligatorio"
             etTelefono.requestFocus()
             return
         }
 
         if (!telefono.matches(Regex("^[+]?[0-9\\s()-]{7,15}$"))) {
-            etTelefono.error = "Formato de teléfono inválido"
+            etTelefono.error = "Formato de telefono invalido"
             etTelefono.requestFocus()
             return
         }
 
-        // Solo exigir GPS en creacion nueva, en edicion ya tiene coordenadas
+        // GPS obligatorio solo al crear (al editar ya tiene coordenadas)
         if (!esEdicion) {
             val lm = getSystemService(LOCATION_SERVICE) as LocationManager
             if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
-                    .setTitle("GPS Desactivado")
-                    .setMessage("El GPS no está activo. Active el GPS e intente de nuevo.")
-                    .setPositiveButton("Entendido", null)
-                    .show()
+                mostrarDialogo("GPS Desactivado", "Active el GPS e intente de nuevo.")
                 return
             }
         }
 
         if (latStr.isEmpty() || lngStr.isEmpty()) {
-            MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
-                .setTitle("Ubicación no disponible")
-                .setMessage("Aún no se ha obtenido la ubicación GPS. Espere un momento e intente de nuevo.")
-                .setPositiveButton("Entendido", null)
-                .show()
+            mostrarDialogo("Ubicacion no disponible", "Espere a que se obtenga la ubicacion GPS.")
             return
         }
 
         val latitud = latStr.toDoubleOrNull()
         val longitud = lngStr.toDoubleOrNull()
         if (latitud == null || longitud == null) {
-            Snackbar.make(coordinatorLayout, "Coordenadas inválidas", Snackbar.LENGTH_SHORT).show()
+            mostrarSnackbar("Coordenadas invalidas")
             return
         }
 
+        // --- Enviar al servidor ---
+
         val contacto = Contacto(
-            id = if (contactoEditId != -1) contactoEditId else 0,
+            id = if (esEdicion) contactoEditId else 0,
             nombre = nombre,
             telefono = telefono,
             latitud = latitud,
@@ -389,45 +400,39 @@ class MainActivity : AppCompatActivity() {
             fotoPath = fotoPath
         )
 
+        // Solo enviar archivo si es foto local (no URL remota)
         val fotoFile = if (fotoPath != null && !fotoPath!!.startsWith("http")) File(fotoPath!!) else null
         fabSalvar.isEnabled = false
 
-        if (contactoEditId != -1) {
+        if (esEdicion) {
             ApiService.actualizar(contacto, fotoFile, object : ApiService.ApiCallback<Boolean> {
                 override fun onSuccess(result: Boolean) {
                     fabSalvar.isEnabled = true
-                    Snackbar.make(coordinatorLayout, "Contacto actualizado", Snackbar.LENGTH_SHORT)
-                        .setBackgroundTint(ContextCompat.getColor(this@MainActivity, R.color.save_green))
-                        .show()
+                    mostrarSnackbar("Contacto actualizado", R.color.save_green)
                     finish()
                     transicionCerrar(R.anim.slide_in_left, R.anim.slide_out_right)
                 }
                 override fun onError(message: String) {
                     fabSalvar.isEnabled = true
-                    Snackbar.make(coordinatorLayout, "Error: $message", Snackbar.LENGTH_LONG)
-                        .setBackgroundTint(ContextCompat.getColor(this@MainActivity, R.color.delete_red))
-                        .show()
+                    mostrarSnackbar("Error: $message", R.color.delete_red)
                 }
             })
         } else {
             ApiService.insertar(contacto, fotoFile, object : ApiService.ApiCallback<Int> {
                 override fun onSuccess(result: Int) {
                     fabSalvar.isEnabled = true
-                    Snackbar.make(coordinatorLayout, "Contacto guardado exitosamente", Snackbar.LENGTH_SHORT)
-                        .setBackgroundTint(ContextCompat.getColor(this@MainActivity, R.color.save_green))
-                        .show()
+                    mostrarSnackbar("Contacto guardado exitosamente", R.color.save_green)
                     limpiarFormulario()
                 }
                 override fun onError(message: String) {
                     fabSalvar.isEnabled = true
-                    Snackbar.make(coordinatorLayout, "Error: $message", Snackbar.LENGTH_LONG)
-                        .setBackgroundTint(ContextCompat.getColor(this@MainActivity, R.color.delete_red))
-                        .show()
+                    mostrarSnackbar("Error: $message", R.color.delete_red)
                 }
             })
         }
     }
 
+    /** Limpia el formulario despues de guardar exitosamente */
     private fun limpiarFormulario() {
         etNombre.setText("")
         etTelefono.setText("")
@@ -438,5 +443,38 @@ class MainActivity : AppCompatActivity() {
         ubicacionObtenida = false
         startPulseAnimation()
         obtenerUbicacion()
+    }
+
+    // ==================== ANIMACIONES ====================
+
+    /** Inicia animacion de pulso en los campos de coordenadas (indica que busca GPS) */
+    private fun startPulseAnimation() {
+        val pulse = AnimationUtils.loadAnimation(this, R.anim.pulse)
+        tilLatitud.startAnimation(pulse)
+        tilLongitud.startAnimation(pulse)
+    }
+
+    /** Detiene la animacion de pulso (ya se obtuvo la ubicacion) */
+    private fun stopPulseAnimation() {
+        tilLatitud.clearAnimation()
+        tilLongitud.clearAnimation()
+    }
+
+    // ==================== UTILIDADES ====================
+
+    /** Muestra un mensaje breve en la parte inferior de la pantalla */
+    private fun mostrarSnackbar(mensaje: String, colorRes: Int? = null) {
+        val snackbar = Snackbar.make(findViewById(R.id.coordinatorLayout), mensaje, Snackbar.LENGTH_SHORT)
+        colorRes?.let { snackbar.setBackgroundTint(ContextCompat.getColor(this, it)) }
+        snackbar.show()
+    }
+
+    /** Muestra un dialogo informativo con un solo boton */
+    private fun mostrarDialogo(titulo: String, mensaje: String) {
+        MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+            .setTitle(titulo)
+            .setMessage(mensaje)
+            .setPositiveButton("Entendido", null)
+            .show()
     }
 }
