@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContactosGPS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #13131a;
+            --surface-2: #1a1a24;
+            --surface-3: #22222e;
+            --border: #2a2a38;
+            --text: #e8e8ed;
+            --text-muted: #8888a0;
+            --accent: #4a9eff;
+            --accent-glow: rgba(74, 158, 255, 0.15);
+            --accent-2: #00d4aa;
+            --danger: #ff4a6e;
+            --danger-glow: rgba(255, 74, 110, 0.15);
+            --success: #00d4aa;
+            --success-glow: rgba(0, 212, 170, 0.15);
+            --radius: 14px;
+            --radius-sm: 8px;
+            --shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ===== FONDO ATMOSFERICO ===== */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(74, 158, 255, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(0, 212, 170, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+        }
+
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 70px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--text), var(--text-muted));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .stat-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: var(--surface-2);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        .stat-pill .num {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .btn-nuevo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 22px;
+            background: linear-gradient(135deg, var(--accent), #3a8eef);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(74, 158, 255, 0.3);
+        }
+
+        .btn-nuevo:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 28px rgba(74, 158, 255, 0.45);
+        }
+
+        /* ===== LAYOUT PRINCIPAL ===== */
+        .main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ===== BUSCADOR ===== */
+        .search-bar {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+
+        .search-bar i {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 14px 20px 14px 48px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-bar input::placeholder { color: var(--text-muted); }
+
+        .search-bar input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        /* ===== GRID DE CONTACTOS ===== */
+        .contactos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 1.2rem;
+        }
+
+        /* ===== CARD DE CONTACTO ===== */
+        .contacto-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.4rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            animation: cardIn 0.5s ease backwards;
+        }
+
+        .contacto-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .contacto-card:hover {
+            border-color: rgba(74, 158, 255, 0.3);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow);
+        }
+
+        .contacto-card:hover::before { opacity: 1; }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card-top {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 1rem;
+        }
+
+        .avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #fff;
+            flex-shrink: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .card-info { flex: 1; min-width: 0; }
+
+        .card-nombre {
+            font-weight: 600;
+            font-size: 1.05rem;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-telefono {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .card-coords {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--surface-2);
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .card-coords i { color: var(--accent-2); }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .card-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: var(--radius-sm);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .card-btn:hover {
+            background: var(--surface-2);
+            color: var(--text);
+            border-color: var(--text-muted);
+        }
+
+        .card-btn.mapa:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-glow); }
+        .card-btn.editar:hover { color: var(--success); border-color: var(--success); background: var(--success-glow); }
+        .card-btn.eliminar:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-glow); }
+
+        /* ===== EMPTY STATE ===== */
+        .empty-state {
+            text-align: center;
+            padding: 5rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+
+        .empty-state p { font-size: 1.1rem; }
+
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: translateY(20px) scale(0.97);
+            transition: transform 0.3s ease;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.4rem 1.6rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1.1rem;
+        }
+
+        .modal-close:hover {
+            background: var(--danger-glow);
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .modal-body { padding: 1.6rem; }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-group input::placeholder { color: #555568; }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-group input[readonly] {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .foto-upload {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .foto-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 16px;
+            background: var(--surface-2);
+            border: 2px dashed var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .foto-preview:hover {
+            border-color: var(--accent);
+        }
+
+        .foto-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .foto-preview i {
+            font-size: 2rem;
+            color: var(--text-muted);
+        }
+
+        .foto-preview .foto-hint {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 4px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            font-size: 0.65rem;
+            text-align: center;
+        }
+
+        #fotoInput { display: none; }
+
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--accent), #3a8eef);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 0.5rem;
+        }
+
+        .btn-submit:hover {
+            box-shadow: 0 4px 20px rgba(74, 158, 255, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ===== MODAL MAPA ===== */
+        .modal-mapa .modal {
+            max-width: 700px;
+        }
+
+        #mapa-container {
+            width: 100%;
+            height: 400px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .mapa-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 1rem;
+        }
+
+        .mapa-info .avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+        }
+
+        .mapa-info-text h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .mapa-info-text p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* ===== MODAL ELIMINAR ===== */
+        .modal-eliminar .modal { max-width: 400px; }
+
+        .eliminar-body {
+            text-align: center;
+            padding: 1rem 0;
+        }
+
+        .eliminar-body i {
+            font-size: 3rem;
+            color: var(--danger);
+            margin-bottom: 1rem;
+        }
+
+        .eliminar-body p {
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .eliminar-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 1.5rem;
+        }
+
+        .btn-cancelar {
+            flex: 1;
+            padding: 12px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: var(--radius-sm);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-cancelar:hover { background: var(--surface-3); }
+
+        .btn-eliminar {
+            flex: 1;
+            padding: 12px;
+            background: var(--danger);
+            border: none;
+            color: #fff;
+            border-radius: var(--radius-sm);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-eliminar:hover {
+            box-shadow: 0 4px 20px rgba(255, 74, 110, 0.4);
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 14px 22px;
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            font-weight: 500;
+            z-index: 300;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.active {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: var(--surface);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .toast.error {
+            background: var(--surface);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        /* ===== LOADING ===== */
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .header { padding: 0 1rem; }
+            .header-inner { height: 60px; }
+            .logo-text { display: none; }
+            .stat-pill { display: none; }
+            .main { padding: 1rem; }
+            .contactos-grid { grid-template-columns: 1fr; }
+            .btn-nuevo span { display: none; }
+            .modal { margin: 0.5rem; border-radius: 14px; }
+            .form-row { grid-template-columns: 1fr; }
+            #mapa-container { height: 300px; }
+        }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon"><i class="bi bi-geo-alt-fill"></i></div>
+                <span class="logo-text">ContactosGPS</span>
+            </div>
+            <div class="header-stats">
+                <div class="stat-pill">
+                    <i class="bi bi-people"></i>
+                    <span class="num" id="totalContactos">0</span> contactos
+                </div>
+                <button class="btn-nuevo" onclick="abrirModalCrear()">
+                    <i class="bi bi-plus-lg"></i>
+                    <span>Nuevo contacto</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENIDO -->
+    <main class="main">
+        <div class="search-bar">
+            <i class="bi bi-search"></i>
+            <input type="text" id="buscador" placeholder="Buscar por nombre o telefono..." oninput="filtrarContactos()">
+        </div>
+        <div id="contactosGrid" class="contactos-grid"></div>
+        <div id="loadingSpinner" class="loading-spinner"><div class="spinner"></div></div>
+        <div id="emptyState" class="empty-state" style="display:none;">
+            <i class="bi bi-person-x"></i>
+            <p>No hay contactos registrados</p>
+        </div>
+    </main>
+
+    <!-- MODAL CREAR/EDITAR -->
+    <div class="modal-overlay" id="modalForm">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitulo">Nuevo contacto</h2>
+                <button class="modal-close" onclick="cerrarModal('modalForm')"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="contactoForm" onsubmit="guardarContacto(event)">
+                    <input type="hidden" id="formId">
+
+                    <div class="form-group">
+                        <div class="foto-upload">
+                            <div class="foto-preview" onclick="document.getElementById('fotoInput').click()">
+                                <img id="fotoPreview" src="" style="display:none;">
+                                <i class="bi bi-camera" id="fotoIcon"></i>
+                                <span class="foto-hint">Click para subir</span>
+                            </div>
+                            <input type="file" id="fotoInput" accept="image/*" onchange="previsualizarFoto(this)">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Nombre</label>
+                        <input type="text" id="formNombre" placeholder="Nombre del contacto" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Telefono</label>
+                        <input type="text" id="formTelefono" placeholder="Numero de telefono" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Latitud</label>
+                            <input type="text" id="formLatitud" placeholder="0.00000000">
+                        </div>
+                        <div class="form-group">
+                            <label>Longitud</label>
+                            <input type="text" id="formLongitud" placeholder="0.00000000">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="btnSubmit">
+                        <i class="bi bi-check-lg"></i> Guardar contacto
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MAPA -->
+    <div class="modal-overlay modal-mapa" id="modalMapa">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Ubicacion</h2>
+                <button class="modal-close" onclick="cerrarModal('modalMapa')"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="mapa-info" id="mapaInfo"></div>
+                <div id="mapa-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ELIMINAR -->
+    <div class="modal-overlay modal-eliminar" id="modalEliminar">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Eliminar contacto</h2>
+                <button class="modal-close" onclick="cerrarModal('modalEliminar')"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="eliminar-body">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <h3 id="eliminarNombre"></h3>
+                    <p>Esta accion no se puede deshacer.</p>
+                    <div class="eliminar-actions">
+                        <button class="btn-cancelar" onclick="cerrarModal('modalEliminar')">Cancelar</button>
+                        <button class="btn-eliminar" id="btnEliminar">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const API_URL = 'api.php';
+        let contactos = [];
+        let mapaLeaflet = null;
+
+        // ===== COLORES AVATAR =====
+        const coloresAvatar = [
+            'linear-gradient(135deg, #1565C0, #1976D2)',
+            'linear-gradient(135deg, #00897B, #00BCD4)',
+            'linear-gradient(135deg, #2E7D32, #4CAF50)',
+            'linear-gradient(135deg, #E65100, #FF9800)',
+            'linear-gradient(135deg, #7B1FA2, #9C27B0)',
+            'linear-gradient(135deg, #C2185B, #E91E63)'
+        ];
+
+        function colorPorNombre(nombre) {
+            let hash = 0;
+            for (let i = 0; i < nombre.length; i++) hash = ((hash << 5) - hash) + nombre.charCodeAt(i);
+            return coloresAvatar[Math.abs(hash) % coloresAvatar.length];
+        }
+
+        // ===== CARGAR CONTACTOS =====
+        async function cargarContactos() {
+            try {
+                const res = await fetch(`${API_URL}?action=listar`);
+                const data = await res.json();
+                if (data.success) {
+                    contactos = data.data;
+                    renderizarContactos(contactos);
+                    document.getElementById('totalContactos').textContent = contactos.length;
+                }
+            } catch (e) {
+                mostrarToast('Error al conectar con el servidor', 'error');
+            }
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // ===== RENDERIZAR =====
+        function renderizarContactos(lista) {
+            const grid = document.getElementById('contactosGrid');
+            const empty = document.getElementById('emptyState');
+
+            if (lista.length === 0) {
+                grid.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+            grid.innerHTML = lista.map((c, i) => {
+                const inicial = c.nombre.charAt(0).toUpperCase();
+                const avatarBg = colorPorNombre(c.nombre);
+                const fotoHtml = c.foto
+                    ? `<img src="${c.foto}" alt="${c.nombre}" onerror="this.style.display='none'">`
+                    : '';
+
+                return `
+                <div class="contacto-card" style="animation-delay: ${i * 60}ms">
+                    <div class="card-top">
+                        <div class="avatar" style="background: ${avatarBg}">
+                            ${inicial}
+                            ${fotoHtml}
+                        </div>
+                        <div class="card-info">
+                            <div class="card-nombre">${c.nombre}</div>
+                            <div class="card-telefono">
+                                <i class="bi bi-telephone"></i> ${c.telefono}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-coords">
+                        <i class="bi bi-geo-alt"></i>
+                        ${parseFloat(c.latitud).toFixed(6)}, ${parseFloat(c.longitud).toFixed(6)}
+                    </div>
+                    <div class="card-actions">
+                        <button class="card-btn mapa" onclick="event.stopPropagation(); verMapa(${c.id})" type="button">
+                            <i class="bi bi-map"></i> Mapa
+                        </button>
+                        <button class="card-btn editar" onclick="event.stopPropagation(); abrirModalEditar(${c.id})" type="button">
+                            <i class="bi bi-pencil"></i> Editar
+                        </button>
+                        <button class="card-btn eliminar" onclick="event.stopPropagation(); abrirModalEliminar(${c.id})" type="button">
+                            <i class="bi bi-trash3"></i> Eliminar
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ===== FILTRAR =====
+        function filtrarContactos() {
+            const q = document.getElementById('buscador').value.toLowerCase();
+            const filtrados = contactos.filter(c =>
+                c.nombre.toLowerCase().includes(q) || c.telefono.includes(q)
+            );
+            renderizarContactos(filtrados);
+        }
+
+        // ===== MODALES =====
+        function abrirModal(id) {
+            document.getElementById(id).classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function cerrarModal(id) {
+            document.getElementById(id).classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Cerrar modal con Escape o click fuera
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay.active').forEach(m => {
+                    m.classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+            }
+        });
+
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', e => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            });
+        });
+
+        // ===== CREAR =====
+        function abrirModalCrear() {
+            document.getElementById('modalTitulo').textContent = 'Nuevo contacto';
+            document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-check-lg"></i> Guardar contacto';
+            document.getElementById('formId').value = '';
+            document.getElementById('formNombre').value = '';
+            document.getElementById('formTelefono').value = '';
+            document.getElementById('formLatitud').value = '';
+            document.getElementById('formLongitud').value = '';
+            document.getElementById('fotoPreview').style.display = 'none';
+            document.getElementById('fotoIcon').style.display = 'block';
+            document.getElementById('fotoInput').value = '';
+            abrirModal('modalForm');
+        }
+
+        // ===== EDITAR =====
+        function abrirModalEditar(id) {
+            const c = contactos.find(x => x.id == id);
+            if (!c) return;
+
+            document.getElementById('modalTitulo').textContent = 'Editar contacto';
+            document.getElementById('btnSubmit').innerHTML = '<i class="bi bi-check-lg"></i> Actualizar contacto';
+            document.getElementById('formId').value = c.id;
+            document.getElementById('formNombre').value = c.nombre;
+            document.getElementById('formTelefono').value = c.telefono;
+            document.getElementById('formLatitud').value = c.latitud;
+            document.getElementById('formLongitud').value = c.longitud;
+            document.getElementById('fotoInput').value = '';
+
+            if (c.foto) {
+                document.getElementById('fotoPreview').src = c.foto;
+                document.getElementById('fotoPreview').style.display = 'block';
+                document.getElementById('fotoIcon').style.display = 'none';
+            } else {
+                document.getElementById('fotoPreview').style.display = 'none';
+                document.getElementById('fotoIcon').style.display = 'block';
+            }
+
+            abrirModal('modalForm');
+        }
+
+        // ===== GUARDAR =====
+        async function guardarContacto(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('formId').value;
+            const nombre = document.getElementById('formNombre').value.trim();
+            const telefono = document.getElementById('formTelefono').value.trim();
+            const latitud = document.getElementById('formLatitud').value.trim() || '0';
+            const longitud = document.getElementById('formLongitud').value.trim() || '0';
+            const fotoFile = document.getElementById('fotoInput').files[0];
+
+            if (!nombre || !telefono) {
+                mostrarToast('Nombre y telefono son obligatorios', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btnSubmit');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Guardando...';
+
+            const formData = new FormData();
+            formData.append('nombre', nombre);
+            formData.append('telefono', telefono);
+            formData.append('latitud', latitud);
+            formData.append('longitud', longitud);
+            if (fotoFile) formData.append('foto', fotoFile);
+
+            const action = id ? 'actualizar' : 'insertar';
+            if (id) formData.append('id', id);
+
+            try {
+                const res = await fetch(`${API_URL}?action=${action}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    mostrarToast(id ? 'Contacto actualizado' : 'Contacto guardado', 'success');
+                    cerrarModal('modalForm');
+                    cargarContactos();
+                } else {
+                    mostrarToast(data.message || 'Error al guardar', 'error');
+                }
+            } catch (e) {
+                mostrarToast('Error de conexion', 'error');
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar contacto';
+        }
+
+        // ===== FOTO PREVIEW =====
+        function previsualizarFoto(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById('fotoPreview');
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                    document.getElementById('fotoIcon').style.display = 'none';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // ===== ELIMINAR =====
+        function abrirModalEliminar(id) {
+            const c = contactos.find(x => x.id == id);
+            if (!c) return;
+
+            document.getElementById('eliminarNombre').textContent = `Eliminar a ${c.nombre}?`;
+            document.getElementById('btnEliminar').onclick = () => eliminarContacto(id);
+            abrirModal('modalEliminar');
+        }
+
+        async function eliminarContacto(id) {
+            try {
+                const formData = new FormData();
+                formData.append('id', id);
+
+                const res = await fetch(`${API_URL}?action=eliminar`, {
+                    method: 'POST',
+                    body: new URLSearchParams({ id: id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    mostrarToast('Contacto eliminado', 'success');
+                    cerrarModal('modalEliminar');
+                    cargarContactos();
+                } else {
+                    mostrarToast(data.message || 'Error al eliminar', 'error');
+                }
+            } catch (e) {
+                mostrarToast('Error de conexion', 'error');
+            }
+        }
+
+        // ===== MAPA =====
+        function verMapa(id) {
+            const c = contactos.find(x => x.id == id);
+            if (!c) return;
+
+            const lat = parseFloat(c.latitud);
+            const lng = parseFloat(c.longitud);
+            const inicial = c.nombre.charAt(0).toUpperCase();
+            const avatarBg = colorPorNombre(c.nombre);
+            const fotoHtml = c.foto
+                ? `<img src="${c.foto}" alt="${c.nombre}" onerror="this.style.display='none'">`
+                : '';
+
+            document.getElementById('mapaInfo').innerHTML = `
+                <div class="avatar" style="background: ${avatarBg}">${inicial}${fotoHtml}</div>
+                <div class="mapa-info-text">
+                    <h3>${c.nombre}</h3>
+                    <p><i class="bi bi-telephone"></i> ${c.telefono}</p>
+                </div>
+            `;
+
+            abrirModal('modalMapa');
+
+            // Inicializar mapa despues de que el modal sea visible
+            setTimeout(() => {
+                if (mapaLeaflet) {
+                    mapaLeaflet.remove();
+                    mapaLeaflet = null;
+                }
+
+                mapaLeaflet = L.map('mapa-container').setView([lat, lng], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap'
+                }).addTo(mapaLeaflet);
+
+                L.marker([lat, lng])
+                    .addTo(mapaLeaflet)
+                    .bindPopup(`<b>${c.nombre}</b><br>${c.telefono}`)
+                    .openPopup();
+            }, 300);
+        }
+
+        // ===== TOAST =====
+        function mostrarToast(msg, tipo) {
+            const toast = document.getElementById('toast');
+            const icono = tipo === 'success' ? 'bi-check-circle' : 'bi-exclamation-circle';
+            toast.className = `toast ${tipo}`;
+            toast.innerHTML = `<i class="bi ${icono}"></i> ${msg}`;
+            toast.classList.add('active');
+            setTimeout(() => toast.classList.remove('active'), 3000);
+        }
+
+        // ===== INIT =====
+        cargarContactos();
+    </script>
+</body>
+</html>
