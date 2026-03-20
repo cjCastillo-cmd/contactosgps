@@ -1,0 +1,13 @@
+CREATE DATABASE IF NOT EXISTS contactosgps CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE contactosgps;
+
+CREATE TABLE IF NOT EXISTS contactos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    telefono VARCHAR(50) NOT NULL,
+    latitud DOUBLE NOT NULL,
+    longitud DOUBLE NOT NULL,
+    foto VARCHAR(255) DEFAULT NULL,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
