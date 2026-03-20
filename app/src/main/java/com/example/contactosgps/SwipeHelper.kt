@@ -13,6 +13,8 @@ class SwipeHelper(
     private val onSwipeRight: (Int) -> Unit
 ) : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
 
+    private val paint = Paint()
+
     override fun onMove(
         recyclerView: RecyclerView,
         viewHolder: RecyclerView.ViewHolder,
@@ -38,7 +40,6 @@ class SwipeHelper(
         isCurrentlyActive: Boolean
     ) {
         val itemView = viewHolder.itemView
-        val paint = Paint()
         val cornerRadius = 16f * recyclerView.context.resources.displayMetrics.density
 
         if (dX < 0) {

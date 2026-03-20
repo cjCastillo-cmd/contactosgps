@@ -27,7 +27,8 @@ class ContactoAdapter(
     private var lastAnimatedPosition = -1
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val ivFoto: CircleImageView = view.findViewById(R.id.ivFotoItem)
+        val ivFoto: CircleImageView = view.findViewById(
+            R.id.ivFotoItem)
         val tvInicial: TextView = view.findViewById(R.id.tvInicial)
         val tvNombre: TextView = view.findViewById(R.id.tvNombre)
         val tvTelefono: TextView = view.findViewById(R.id.tvTelefono)
@@ -89,6 +90,8 @@ class ContactoAdapter(
     override fun getItemCount(): Int = contactosFiltrados.size
 
     fun getItem(position: Int): Contacto = contactosFiltrados[position]
+
+    fun getItemPosition(contacto: Contacto): Int = contactosFiltrados.indexOf(contacto)
 
     @SuppressLint("NotifyDataSetChanged")
     fun actualizarDatos(nuevos: List<Contacto>) {

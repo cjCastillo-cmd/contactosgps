@@ -67,12 +67,14 @@ class ContactosActivity : AppCompatActivity(), ContactoAdapter.OnContactoClickLi
         rvContactos.adapter = adapter
 
         val swipeHelper = SwipeHelper(
-            onSwipeLeft = { position -> confirmarEliminar(adapter.getItem(position), position) },
-            onSwipeRight = { position -> editarContacto(adapter.getItem(position)) }
+            onSwipeLeft = { position ->
+                if (position < adapter.itemCount) confirmarEliminar(adapter.getItem(position), position)
+            },
+            onSwipeRight = { position ->
+                if (position < adapter.itemCount) editarContacto(adapter.getItem(position))
+            }
         )
         ItemTouchHelper(swipeHelper).attachToRecyclerView(rvContactos)
-
-        cargarContactos()
     }
 
     private fun setupSearch() {
@@ -173,26 +175,7 @@ class ContactosActivity : AppCompatActivity(), ContactoAdapter.OnContactoClickLi
         transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
     }
 
-    override fun onItemClick(contacto: Contacto) {
-        MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
-            .setTitle("Ubicación")
-            .setMessage("¿Desea ir a la ubicación de ${contacto.nombre}?")
-            .setPositiveButton("Ver en mapa") { _, _ ->
-                val intent = Intent(this, MapaActivity::class.java).apply {
-                    putExtra("nombre", contacto.nombre)
-                    putExtra("telefono", contacto.telefono)
-                    putExtra("latitud", contacto.latitud)
-                    putExtra("longitud", contacto.longitud)
-                    putExtra("foto_path", contacto.fotoPath)
-                }
-                startActivity(intent)
-                transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
-    }
-
-    override fun onMapClick(contacto: Contacto) {
+    private fun abrirMapa(contacto: Contacto) {
         val intent = Intent(this, MapaActivity::class.java).apply {
             putExtra("nombre", contacto.nombre)
             putExtra("telefono", contacto.telefono)
@@ -202,5 +185,24 @@ class ContactosActivity : AppCompatActivity(), ContactoAdapter.OnContactoClickLi
         }
         startActivity(intent)
         transicionAbrir(R.anim.slide_in_right, R.anim.slide_out_left)
+    }
+
+    override fun onItemClick(contacto: Contacto) {
+        val opciones = arrayOf("Ver en mapa", "Editar", "Eliminar")
+        MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+            .setTitle(contacto.nombre)
+            .setItems(opciones) { _, which ->
+                when (which) {
+                    0 -> abrirMapa(contacto)
+                    1 -> editarContacto(contacto)
+                    2 -> confirmarEliminar(contacto, adapter.getItemPosition(contacto))
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    override fun onMapClick(contacto: Contacto) {
+        abrirMapa(contacto)
     }
 }

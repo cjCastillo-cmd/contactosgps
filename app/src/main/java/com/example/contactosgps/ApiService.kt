@@ -8,13 +8,17 @@ import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
+import java.util.concurrent.Executors
 
 object ApiService {
 
     // Cambiar a la IP de tu PC si pruebas en dispositivo físico
-    private const val BASE_URL = "http://10.0.2.2/contactosgps/api.php"
+    private const val BASE_URL = "http://10.0.2.2" +
+            "" +
+            "/contactosgps/api.php"
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val executor = Executors.newFixedThreadPool(3)
 
     interface ApiCallback<T> {
         fun onSuccess(result: T)
@@ -167,7 +171,7 @@ object ApiService {
     // ==================== UTILIDADES ====================
 
     private fun ejecutarEnHilo(task: () -> Unit) {
-        Thread(task).start()
+        executor.execute(task)
     }
 
     private fun leerRespuesta(conn: HttpURLConnection): String {

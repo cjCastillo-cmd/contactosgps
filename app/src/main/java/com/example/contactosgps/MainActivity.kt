@@ -95,10 +95,10 @@ class MainActivity : AppCompatActivity() {
         if (intent.hasExtra("contacto_id")) {
             contactoEditId = intent.getIntExtra("contacto_id", -1)
             cargarContactoParaEditar()
+        } else {
+            solicitarPermisos()
+            startPulseAnimation()
         }
-
-        solicitarPermisos()
-        startPulseAnimation()
     }
 
     private fun initViews() {
@@ -321,7 +321,10 @@ class MainActivity : AppCompatActivity() {
         val lngStr = etLongitud.text.toString().trim()
         val coordinatorLayout = findViewById<androidx.coordinatorlayout.widget.CoordinatorLayout>(R.id.coordinatorLayout)
 
-        if (fotoPath == null || !File(fotoPath!!).exists()) {
+        // Solo exigir foto local en creacion nueva (en edicion puede ser URL remota)
+        val esEdicion = contactoEditId != -1
+        val tieneFoto = fotoPath != null && (fotoPath!!.startsWith("http") || File(fotoPath!!).exists())
+        if (!tieneFoto && !esEdicion) {
             MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
                 .setTitle("Foto requerida")
                 .setMessage("Debe tomar una foto del contacto antes de guardar.")
@@ -342,17 +345,26 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
-        if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
-                .setTitle("GPS Desactivado")
-                .setMessage("El GPS no está activo. Active el GPS e intente de nuevo.")
-                .setPositiveButton("Entendido", null)
-                .show()
+        if (!telefono.matches(Regex("^[+]?[0-9\\s()-]{7,15}$"))) {
+            etTelefono.error = "Formato de teléfono inválido"
+            etTelefono.requestFocus()
             return
         }
 
-        if (latStr.isEmpty() || lngStr.isEmpty() || !ubicacionObtenida) {
+        // Solo exigir GPS en creacion nueva, en edicion ya tiene coordenadas
+        if (!esEdicion) {
+            val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+            if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                    .setTitle("GPS Desactivado")
+                    .setMessage("El GPS no está activo. Active el GPS e intente de nuevo.")
+                    .setPositiveButton("Entendido", null)
+                    .show()
+                return
+            }
+        }
+
+        if (latStr.isEmpty() || lngStr.isEmpty()) {
             MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
                 .setTitle("Ubicación no disponible")
                 .setMessage("Aún no se ha obtenido la ubicación GPS. Espere un momento e intente de nuevo.")
@@ -361,8 +373,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val latitud = latStr.toDouble()
-        val longitud = lngStr.toDouble()
+        val latitud = latStr.toDoubleOrNull()
+        val longitud = lngStr.toDoubleOrNull()
+        if (latitud == null || longitud == null) {
+            Snackbar.make(coordinatorLayout, "Coordenadas inválidas", Snackbar.LENGTH_SHORT).show()
+            return
+        }
 
         val contacto = Contacto(
             id = if (contactoEditId != -1) contactoEditId else 0,
